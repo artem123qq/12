@@ -3441,7 +3441,7 @@ class GUIBuilderApp:
             self.create_rule_widget(i, rule)
 
     def create_rule_widget(self, index, rule):
-        """Создает визуальный блок правила с полем сравнения значения"""
+        """Создает визуальный блок правила с полем выбора виджета для проверки"""
         frame = tk.Frame(self.logic_inner, bg="white", relief=tk.RAISED, bd=1)
         frame.pack(fill=tk.X, padx=10, pady=5)
 
@@ -3481,10 +3481,19 @@ class GUIBuilderApp:
         value_var = tk.StringVar(value=rule.get("value", ""))
         ttk.Entry(body, textvariable=value_var, width=30).grid(row=3, column=1, sticky=tk.W, padx=10, pady=5)
 
-        # 🟢 УСЛОВИЕ + ПОЛЕ "СРАВНИТЬ С"
-        tk.Label(body, text="УСЛОВИЕ: ", bg="white", font=("Arial", 9, "bold")).grid(row=4, column=0, sticky=tk.NW,
-                                                                                     pady=5)
+        # 🟢 УСЛОВИЯ
+        tk.Label(body, text="🔍 ПРОВЕРЯТЬ:", bg="white", font=("Arial", 9, "bold")).grid(row=4, column=0, sticky=tk.W,
+                                                                                        pady=5)
+        # Сюда выбираем виджет, ТЕКСТ КОТОРОГО будем проверять (например, Entry)
+        check_widget_var = tk.StringVar(value=rule.get("check_widget", ""))
+        check_widget_combo = ttk.Combobox(body, textvariable=check_widget_var, width=28)
+        check_widget_combo.grid(row=4, column=1, sticky=tk.W, padx=10, pady=5)
+        self.update_target_list(check_widget_combo)
+        tk.Label(body, text="(Оставьте пустым, если проверяете саму кнопку)", bg="white", fg="gray",
+                 font=("Arial", 7)).grid(row=5, column=1, sticky=tk.W, pady=0)
 
+        tk.Label(body, text="УСЛОВИЕ: ", bg="white", font=("Arial", 9, "bold")).grid(row=6, column=0, sticky=tk.W,
+                                                                                     pady=5)
         COND_UI = {
             "always": "Всегда выполнять",
             "text_eq": "Текст/значение РАВНО",
@@ -3497,19 +3506,19 @@ class GUIBuilderApp:
         cond_var = tk.StringVar(value=COND_UI.get(cur_cond, "Всегда выполнять"))
         cond_combo = ttk.Combobox(body, textvariable=cond_var, values=list(COND_UI.values()), width=22,
                                   state="readonly")
-        cond_combo.grid(row=4, column=1, sticky=tk.W, padx=10, pady=5)
+        cond_combo.grid(row=6, column=1, sticky=tk.W, padx=10, pady=5)
 
-        # Поле сравнения (появляется только при text_eq / text_neq)
+        # Поле сравнения
         cmp_frame = tk.Frame(body, bg="white")
-        cmp_frame.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=2)
+        cmp_frame.grid(row=7, column=0, columnspan=2, sticky=tk.W, pady=2)
         tk.Label(cmp_frame, text="СРАВНИТЬ С: ", bg="white", font=("Arial", 9, "bold")).pack(side=tk.LEFT)
         cmp_val_var = tk.StringVar(value=rule.get("cond_value", ""))
         cmp_val_entry = ttk.Entry(cmp_frame, textvariable=cmp_val_var, width=25)
         cmp_val_entry.pack(side=tk.LEFT, padx=5)
 
-        # Поля A и B (появляются только при a_eq_b)
+        # Поля A и B
         ab_frame = tk.Frame(body, bg="white")
-        ab_frame.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=2)
+        ab_frame.grid(row=8, column=0, columnspan=2, sticky=tk.W, pady=2)
         tk.Label(ab_frame, text="ПОЛЕ A: ", bg="white", font=("Arial", 9, "bold")).grid(row=0, column=0)
         compare_a_var = tk.StringVar(value=rule.get("compare_a", ""))
         ttk.Combobox(ab_frame, textvariable=compare_a_var, width=30).grid(row=0, column=1, padx=5, pady=2)
@@ -3520,7 +3529,7 @@ class GUIBuilderApp:
         ttk.Combobox(ab_frame, textvariable=compare_b_var, width=30).grid(row=1, column=1, padx=5, pady=2)
         self.update_target_list(ab_frame.winfo_children()[-1])
 
-        # Динамическое скрытие/показ
+        # Динамическое скрытие
         def toggle_cond_fields(*args):
             sel = cond_var.get()
             if sel in [COND_UI["text_eq"], COND_UI["text_neq"]]:
@@ -3544,14 +3553,14 @@ class GUIBuilderApp:
             rule["target"] = target_var.get()
             rule["value"] = value_var.get()
             rule["condition"] = rev_map.get(cond_var.get(), "always")
-            rule["cond_value"] = cmp_val_var.get()  # ← ВОТ ЭТО ПОЛЕ ТЕПЕРЬ СОХРАНЯЕТСЯ
+            rule["check_widget"] = check_widget_var.get()  # ← ДОБАВИТЬ ЭТУ СТРОКУ!
+            rule["cond_value"] = cmp_val_var.get()
             rule["compare_a"] = compare_a_var.get()
             rule["compare_b"] = compare_b_var.get()
             self.logic_status.config(text="Правило сохранено ✓", foreground="green")
             self.root.after(2000, lambda: self.logic_status.config(text=" "))
 
-        ttk.Button(body, text="💾 Сохранить", command=save_rule).grid(row=7, column=1, pady=10, sticky=tk.W)
-
+        ttk.Button(body, text="💾 Сохранить", command=save_rule).grid(row=9, column=1, pady=10, sticky=tk.W)
     def get_condition_hint(self, condition):
         """Подсказка для режима условия"""
         hints = {
@@ -4507,8 +4516,11 @@ class GUIBuilderApp:
         for widget_id, rules in self.logic_rules.items():
             if widget_id not in preview_widgets: continue
 
+            # Данные виджета, который вызывает событие (триггер)
             source_data = preview_widgets[widget_id]
             source_widget = source_data["widget"]
+
+            # Внутренний виджет (на который вешаем событие)
             inner_widget = next((c for c in source_widget.winfo_children()), None)
             if not inner_widget: continue
 
@@ -4521,14 +4533,13 @@ class GUIBuilderApp:
 
                 self.bind_preview_event(
                     inner_widget, rule, preview_widgets, log_entries, canvas,
-                    trigger_data=source_data,  # 🟢 ПЕРЕДАЁМ ДАННЫЕ ТРИГГЕРА
+                    trigger_data=source_data,  # 🟢 ПЕРЕДАЕМ ДАННЫЕ ТРИГГЕРА
                     bind_add=(n > 0)
                 )
 
         if log_entries:
             print("=== Логика в предпросмотре ===")
             for log in log_entries: print(log)
-
     def find_widget_id_by_name(self, target_name, preview_widgets):
         """Находит ID виджета по имени"""
         # Ищем по формату "Button (ID: 12345678)"
@@ -4578,7 +4589,7 @@ class GUIBuilderApp:
         return None
 
     def _evaluate_rule_condition(self, rule, preview_widgets, trigger_data=None):
-        """Проверяет условие правила в предпросмотре (поддержка текста, чекбоксов и сравнения A/B)"""
+        """Проверяет условие правила с поддержкой проверки ДРУГОГО виджета"""
         cond = (rule.get("condition") or "always").strip()
         if cond == "always":
             return True
@@ -4610,18 +4621,30 @@ class GUIBuilderApp:
                         return ""
             return ""
 
+        # 🔹 1. Текст/значение виджета
         # 🔹 Текст/значение виджета-триггера
         if cond in ("text_eq", "text_neq"):
-            trigger_val = get_val(trigger_data)
+            # ПРОВЕРЯЕМ: если указан check_widget, берем его, иначе сам триггер
+            check_id = rule.get("check_widget", "")
+            if check_id and check_id in preview_widgets:
+                target_data = preview_widgets[check_id]  # Берем указанный виджет (Entry)
+            else:
+                target_data = trigger_data  # Иначе берем виджет-триггер (Button)
+
+            trigger_val = get_val(target_data)
             target_val = str(rule.get("cond_value", "")).strip()
             return (trigger_val == target_val) if cond == "text_eq" else (trigger_val != target_val)
 
-        # 🔹 Чекбокс
+        # 🔹 2. Чекбокс
         if cond in ("chk_on", "chk_off"):
-            val = get_val(trigger_data)
+            check_id = rule.get("check_widget", "")
+            if check_id and check_id in preview_widgets:
+                val = get_val(preview_widgets[check_id])
+            else:
+                val = get_val(trigger_data)
             return (val == "1") if cond == "chk_on" else (val != "1")
 
-        # 🔹 Сравнение двух других виджетов (A == B)
+        # 🔹 3. Сравнение A == B
         if cond in ("if_equal", "if_not_equal"):
             a_name = rule.get("compare_a", "")
             b_name = rule.get("compare_b", "")
@@ -4632,8 +4655,6 @@ class GUIBuilderApp:
             return va == vb if cond == "if_equal" else va != vb
 
         return True
-
-    bind_preview_event
     def make_preview_draggable(self, preview_widgets, canvas):
         """Делает виджеты в предпросмотре перетаскиваемыми (опционально)"""
         drag_data = {"x": 0, "y": 0, "item": None, "widget_id": None}
@@ -4851,7 +4872,7 @@ class GUIBuilderApp:
         return True
 
     def bind_preview_event(self, widget, rule, preview_widgets, log_entries, canvas, trigger_data=None, bind_add=False):
-        """Привязывает событие к виджету в предпросмотре с проверкой условий"""
+        """Привязывает событие к виджету в предпросмотре"""
         event = rule.get("event", "click")
         action = rule.get("action", "set_text")
         target_id = self.find_widget_id_by_name(rule.get("target", ""), preview_widgets)
@@ -4865,7 +4886,7 @@ class GUIBuilderApp:
         tk_event = event_map.get(event, "<Button-1>")
 
         def handler(e):
-            # 1. Проверка условия
+            # 1. Проверка условия (передаем trigger_data, чтобы знать, КАКОЙ виджет вызвал событие)
             if not self._evaluate_rule_condition(rule, preview_widgets, trigger_data=trigger_data):
                 log_msg = f"⚡ {event} → условие не выполнено, действие пропущено"
                 log_entries.append(log_msg)
@@ -4913,7 +4934,6 @@ class GUIBuilderApp:
             widget.bind(tk_event, handler, add="+")
         else:
             widget.bind(tk_event, handler)
-
     def apply_logic_to_preview(self, preview_widgets, canvas):
         """Применяет правила логики к виджетам в предпросмотре"""
         log_entries = []
